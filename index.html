@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Veterinaria – Citas</title>
+  <style>
+    :root {
+      --bg: #f5f7fb; --card: #fff; --text: #1f2937; --muted: #6b7280; --border: #e5e7eb;
+      --primary: #2563eb; --primary-d: #1d4ed8;
+      --ok: #15803d; --ok-bg: #ecfdf5; --warn: #b45309; --warn-bg: #fffbeb; --err: #b91c1c; --err-bg: #fef2f2;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
+    main { max-width: 860px; margin: 0 auto; padding: 24px 16px 48px; }
+    h1 { margin: 0 0 16px; font-size: 1.5rem; }
+    h2 { margin: 0 0 12px; font-size: 1.05rem; }
+
+    .tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--border); }
+    .tab { background: none; color: var(--muted); border: 0; border-bottom: 3px solid transparent; border-radius: 0; padding: 10px 12px; font-weight: 600; }
+    .tab:hover { background: none; color: var(--text); }
+    .tab.activa { color: var(--primary); border-bottom-color: var(--primary); }
+
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin: 0 0 16px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 560px) { .grid { grid-template-columns: 1fr; } }
+    .row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+    .row label { flex: 1 1 200px; }
+    label { display: flex; flex-direction: column; gap: 4px; font-size: .9rem; }
+    input, select { padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem; background: #fff; }
+    button { padding: 11px 16px; border: 0; border-radius: 8px; background: var(--primary); color: #fff; font-size: 1rem; cursor: pointer; }
+    button:hover { background: var(--primary-d); }
+    button:disabled { opacity: .6; cursor: not-allowed; }
+    .full { width: 100%; margin-top: 4px; }
+    .hint { color: var(--muted); font-size: .82rem; margin: 6px 0 0; }
+
+    .resultado { margin-top: 16px; padding: 14px 16px; border-radius: 10px; border: 1px solid; }
+    .resultado p { margin: 4px 0 0; }
+    .resultado details { margin-top: 10px; color: var(--text); font-size: .85rem; }
+    .resultado pre { background: #f8fafc; border: 1px solid var(--border); border-radius: 6px; padding: 8px; overflow-x: auto; }
+    .r-confirmada { background: var(--ok-bg); border-color: var(--ok); color: var(--ok); }
+    .r-alerta { background: var(--warn-bg); border-color: var(--warn); color: var(--warn); }
+    .r-rechazada, .r-error { background: var(--err-bg); border-color: var(--err); color: var(--err); }
+
+    .tabla-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    th { font-size: .75rem; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); }
+    td.vacio { color: var(--muted); text-align: center; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: .8rem; font-weight: 600; background: #f3f4f6; }
+    .b-confirmada { background: var(--ok-bg); color: var(--ok); }
+    .b-alerta { background: var(--warn-bg); color: var(--warn); }
+    .b-rechazada { background: var(--err-bg); color: var(--err); }
+    .msg { font-size: .92rem; margin: 10px 0 0; min-height: 1.2em; }
+    .msg.err { color: var(--err); }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Veterinaria · Sistema de citas</h1>
+
+  <nav class="tabs">
+    <button type="button" class="tab activa" data-vista="vistaAgendar">Agendar cita</button>
+    <button type="button" class="tab" data-vista="vistaAgenda">Agenda del día</button>
+  </nav>
+
+  <!-- ===================== VISTA 1: AGENDAR ===================== -->
+  <section id="vistaAgendar" class="vista">
+    <form id="formAgendar">
+      <div class="card">
+        <h2>Propietario y mascota</h2>
+        <div class="grid">
+          <label>Propietario <input name="propietario" required autocomplete="name"></label>
+          <label>Correo <input name="correo" type="email" required autocomplete="email"></label>
+          <label>Mascota <input name="mascota" required></label>
+          <label>Especie
+            <select name="especie" required>
+              <option value="">Selecciona…</option>
+              <option>Perro</option>
+              <option>Gato</option>
+              <option>Otro</option>
+            </select>
+          </label>
+          <label>Servicio
+            <select name="servicio" required>
+              <option value="">Selecciona…</option>
+              <option>Consulta general</option>
+              <option>Vacunación</option>
+              <option>Desparasitación</option>
+              <option>Baño y peluquería</option>
+              <option>Control</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Franja</h2>
+        <div class="grid">
+          <label>Fecha <input id="fechaCita" name="fecha" type="date" required></label>
+          <label>Hora
+            <select name="hora" required>
+              <option value="">Selecciona…</option>
+              <option>08:00</option><option>09:00</option><option>10:00</option><option>11:00</option>
+              <option>12:00</option><option>13:00</option><option>14:00</option><option>15:00</option>
+              <option>16:00</option><option>17:00</option>
+            </select>
+          </label>
+        </div>
+        <button type="submit" id="btnAgendar" class="full" style="margin-top:16px">Agendar cita</button>
+        <div id="resultado" hidden></div>
+      </div>
+    </form>
+  </section>
+
+  <!-- ===================== VISTA 2: AGENDA DEL DÍA ===================== -->
+  <section id="vistaAgenda" class="vista" hidden>
+    <div class="card">
+      <div class="row">
+        <label>Fecha <input id="fechaAgenda" type="date"></label>
+        <label>Token de lectura de Airtable <input id="token" type="password" placeholder="pat…" autocomplete="off"></label>
+        <button type="button" id="btnVerAgenda">Ver agenda</button>
+      </div>
+      <p class="hint">Token con permiso solo de lectura (data.records:read) sobre esta base. Se guarda en este navegador, no en el código.</p>
+      <p id="msgAgenda" class="msg"></p>
+    </div>
+
+    <div class="card">
+      <h2>Franjas y cupos</h2>
+      <div class="tabla-wrap">
+        <table>
+          <thead><tr><th>Hora</th><th>Cupo</th><th>Ocupados</th><th>Libres</th></tr></thead>
+          <tbody id="tbFranjas"><tr><td colspan="4" class="vacio">Elige una fecha.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Citas</h2>
+      <div class="tabla-wrap">
+        <table>
+          <thead><tr><th>Hora</th><th>Propietario</th><th>Mascota</th><th>Especie</th><th>Servicio</th><th>Estado</th></tr></thead>
+          <tbody id="tbCitas"><tr><td colspan="6" class="vacio">Elige una fecha.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+  // ============ CONFIGURACIÓN ============
+  const CONFIG = {
+    WEBHOOK_URL: 'https://hook.eu1.make.com/wm4q9ihrrlgiy188u2nbyvvwy4scj9q7', // Escenario 1 · Custom webhook
+    AIRTABLE_BASE_ID: 'appZDHgDtRM7VrP0M/tblxfGH4NbkkEAR1e/viwWXcrv8mMeLVSwy?blocks=show&bip=full',        // está en la URL de tu base (empieza por "app")
+    TABLA_AGENDA: 'Agenda',
+    TABLA_CITAS: 'Citas',
+  };
+
+  const $ = id => document.getElementById(id);
+
+  // Fecha local en texto AAAA-MM-DD
+  function hoyTexto() {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 10);
+  }
+
+  // ---------- Pestañas ----------
+  document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('activa', t === tab));
+    document.querySelectorAll('.vista').forEach(v => { v.hidden = v.id !== tab.dataset.vista; });
+  }));
+
+  // ============ VISTA 1: AGENDAR ============
+  const formAgendar = $('formAgendar');
+  $('fechaCita').min = hoyTexto();
+
+  formAgendar.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!formAgendar.reportValidity()) return;
+
+    const btn = $('btnAgendar');
+    // Envía: propietario, correo, mascota, especie, servicio, fecha, hora
+    // como x-www-form-urlencoded (evita el preflight de CORS)
+    const datos = new URLSearchParams(new FormData(formAgendar));
+    btn.disabled = true;
+    btn.textContent = 'Agendando…';
+
+    let respuesta;
+    try {
+      const res = await fetch(CONFIG.WEBHOOK_URL, { method: 'POST', body: datos });
+      const texto = await res.text();
+      try { respuesta = JSON.parse(texto); }
+      catch { respuesta = { estado: 'error', detalle: texto || ('HTTP ' + res.status) }; }
+    } catch (err) {
+      respuesta = { estado: 'error', detalle: 'No se pudo conectar con el escenario: ' + err.message };
+    }
+
+    mostrarResultado(respuesta, datos.get('fecha'), datos.get('hora'));
+    btn.disabled = false;
+    btn.textContent = 'Agendar cita';
+  });
+
+  function textoCupos(n) {
+    if (n === 0) return 'ya no quedan cupos';
+    if (n === 1) return 'queda 1 cupo';
+    return `quedan ${n} cupos`;
+  }
+
+  // Muestra lo que respondió el escenario: confirmada, alerta, rechazada o error (ruta de respaldo)
+  function mostrarResultado(r, fecha, hora) {
+    const libres = Number(r.libres);
+    const textos = {
+      confirmada: ['✅ Cita confirmada', `Agendada para el ${fecha} a las ${hora}. En esta franja ${textoCupos(libres)}.`],
+      alerta: ['⚠️ Cita confirmada con alerta', `Agendada para el ${fecha} a las ${hora}. En esta franja ${textoCupos(libres)}; se avisó a la administración.`],
+      rechazada: ['❌ Cita rechazada', `La franja ${fecha} ${hora} no tiene cupos libres. Elige otra hora.`],
+      error: ['⛔ No se pudo procesar', 'La franja no existe o los datos no son válidos. Se registró una incidencia.'],
+    };
+    const estado = textos[r.estado] ? r.estado : 'error';
+    const [titulo, detalle] = textos[estado];
+
+    const box = $('resultado');
+    box.className = 'resultado r-' + estado;
+    box.innerHTML = '';
+    const strong = document.createElement('strong'); strong.textContent = titulo;
+    const p = document.createElement('p'); p.textContent = detalle;
+    const det = document.createElement('details');
+    const sum = document.createElement('summary'); sum.textContent = 'Respuesta del escenario';
+    const pre = document.createElement('pre'); pre.textContent = JSON.stringify(r, null, 2);
+    det.append(sum, pre);
+    box.append(strong, p, det);
+    box.hidden = false;
+  }
+
+  // ============ VISTA 2: AGENDA DEL DÍA ============
+  const TOKEN_KEY = 'airtable_token_lectura';
+  function leerToken() { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch { return ''; } }
+  function guardarToken(t) { try { localStorage.setItem(TOKEN_KEY, t); } catch { /* sin almacenamiento */ } }
+
+  $('token').value = leerToken();
+  $('fechaAgenda').value = hoyTexto();
+
+  function msgAgenda(texto, tipo = '') {
+    $('msgAgenda').textContent = texto;
+    $('msgAgenda').className = 'msg ' + tipo;
+  }
+
+  // Lee registros de Airtable filtrando por fecha (texto). 100 por página: suficiente para 40 turnos/día.
+  async function listar(tabla, fecha, token) {
+    const p = new URLSearchParams({ filterByFormula: `{Fecha}='${fecha}'` });
+    p.set('sort[0][field]', 'Hora');
+    p.set('sort[0][direction]', 'asc');
+    const url = `https://api.airtable.com/v0/${CONFIG.AIRTABLE_BASE_ID}/${encodeURIComponent(tabla)}?${p}`;
+    const res = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+    if (res.status === 401 || res.status === 403) throw new Error('Token inválido o sin permiso de lectura sobre la base.');
+    if (res.status === 404) throw new Error('No se encontró la base o la tabla "' + tabla + '". Revisa CONFIG.');
+    if (!res.ok) throw new Error('Airtable respondió HTTP ' + res.status);
+    const data = await res.json();
+    return (data.records || []).map(r => r.fields || {});
+  }
+
+  function fila(celdas) {
+    const tr = document.createElement('tr');
+    celdas.forEach(c => {
+      const td = document.createElement('td');
+      if (c instanceof Node) td.appendChild(c); else td.textContent = c ?? '';
+      tr.appendChild(td);
+    });
+    return tr;
+  }
+
+  function vacio(tbody, cols, texto) {
+    tbody.innerHTML = `<tr><td colspan="${cols}" class="vacio"></td></tr>`;
+    tbody.querySelector('td').textContent = texto;
+  }
+
+  function badge(estado) {
+    const s = document.createElement('span');
+    const e = String(estado || '').toLowerCase();
+    s.className = 'badge ' + (e.includes('alerta') ? 'b-alerta'
+      : e.startsWith('rechaz') ? 'b-rechazada'
+      : e.startsWith('confirm') ? 'b-confirmada' : '');
+    s.textContent = estado || '—';
+    return s;
+  }
+
+  async function verAgenda() {
+    const fecha = $('fechaAgenda').value;
+    const token = $('token').value.trim();
+    if (!fecha) { msgAgenda('Elige una fecha.', 'err'); return; }
+    if (!token) { msgAgenda('Ingresa el token de lectura de Airtable.', 'err'); return; }
+    guardarToken(token);
+
+    $('btnVerAgenda').disabled = true;
+    msgAgenda('Cargando…');
+    try {
+      const [franjas, citas] = await Promise.all([
+        listar(CONFIG.TABLA_AGENDA, fecha, token),
+        listar(CONFIG.TABLA_CITAS, fecha, token),
+      ]);
+
+      const tbF = $('tbFranjas');
+      if (!franjas.length) vacio(tbF, 4, 'No hay franjas para esta fecha.');
+      else {
+        tbF.innerHTML = '';
+        franjas.forEach(f => {
+          const libres = Number(f.Cupo || 0) - Number(f.Ocupados || 0);
+          tbF.appendChild(fila([f.Hora, f.Cupo, f.Ocupados, libres]));
+        });
+      }
+
+      const tbC = $('tbCitas');
+      if (!citas.length) vacio(tbC, 6, 'No hay citas para esta fecha.');
+      else {
+        tbC.innerHTML = '';
+        citas.forEach(c => tbC.appendChild(
+          fila([c.Hora, c.Propietario, c.Mascota, c.Especie, c.Servicio, badge(c.Estado)])
+        ));
+      }
+
+      msgAgenda(`${citas.length} ${citas.length === 1 ? 'solicitud' : 'solicitudes'} el ${fecha}.`);
+    } catch (err) {
+      msgAgenda(err.message, 'err');
+    } finally {
+      $('btnVerAgenda').disabled = false;
+    }
+  }
+
+  $('btnVerAgenda').addEventListener('click', verAgenda);
+  $('fechaAgenda').addEventListener('change', () => { if ($('token').value.trim()) verAgenda(); });
+</script>
+</body>
+</html>
