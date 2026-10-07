@@ -40,7 +40,7 @@
     .resultado pre { background: #f8fafc; border: 1px solid var(--border); border-radius: 6px; padding: 8px; overflow-x: auto; }
     .r-confirmada { background: var(--ok-bg); border-color: var(--ok); color: var(--ok); }
     .r-alerta { background: var(--warn-bg); border-color: var(--warn); color: var(--warn); }
-    .r-rechazada, .r-error { background: var(--err-bg); border-color: var(--err); color: var(--err); }
+    .r-rechazada, .r-error, .r-sin_respuesta, .r-sin_conexion { background: var(--err-bg); border-color: var(--err); color: var(--err); }
 
     .tabla-wrap { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; font-size: .92rem; }
@@ -150,8 +150,8 @@
 <script>
   // ============ CONFIGURACIÓN ============
   const CONFIG = {
-    WEBHOOK_URL: 'https://hook.eu1.make.com/wm4q9ihrrlgiy188u2nbyvvwy4scj9q7', // Escenario 1 · Custom webhook
-    AIRTABLE_BASE_ID: 'appZDHgDtRM7VrP0M/tblxfGH4NbkkEAR1e/viwWXcrv8mMeLVSwy?blocks=show&bip=full',        // está en la URL de tu base (empieza por "app")
+    WEBHOOK_URL: 'PEGA_AQUI_LA_URL_DEL_WEBHOOK', // Escenario 1 · Custom webhook
+    AIRTABLE_BASE_ID: 'appXXXXXXXXXXXXXX',        // está en la URL de tu base (empieza por "app")
     TABLA_AGENDA: 'Agenda',
     TABLA_CITAS: 'Citas',
   };
@@ -191,9 +191,9 @@
       const res = await fetch(CONFIG.WEBHOOK_URL, { method: 'POST', body: datos });
       const texto = await res.text();
       try { respuesta = JSON.parse(texto); }
-      catch { respuesta = { estado: 'error', detalle: texto || ('HTTP ' + res.status) }; }
+      catch { respuesta = { estado: 'sin_respuesta', detalle: texto || ('HTTP ' + res.status) }; }
     } catch (err) {
-      respuesta = { estado: 'error', detalle: 'No se pudo conectar con el escenario: ' + err.message };
+      respuesta = { estado: 'sin_conexion', detalle: err.message };
     }
 
     mostrarResultado(respuesta, datos.get('fecha'), datos.get('hora'));
@@ -215,6 +215,8 @@
       alerta: ['⚠️ Cita confirmada con alerta', `Agendada para el ${fecha} a las ${hora}. En esta franja ${textoCupos(libres)}; se avisó a la administración.`],
       rechazada: ['❌ Cita rechazada', `La franja ${fecha} ${hora} no tiene cupos libres. Elige otra hora.`],
       error: ['⛔ No se pudo procesar', 'La franja no existe o los datos no son válidos. Se registró una incidencia.'],
+      sin_respuesta: ['⛔ El escenario no respondió', 'Make recibió la solicitud, pero ninguna ruta llegó a un Webhook response (escenario apagado, en modo escucha o con error). Revisa el History en Make.'],
+      sin_conexion: ['⛔ Sin conexión con el escenario', 'No se pudo contactar el webhook. Revisa la URL en CONFIG y el header Access-Control-Allow-Origin en los Webhook response.'],
     };
     const estado = textos[r.estado] ? r.estado : 'error';
     const [titulo, detalle] = textos[estado];
