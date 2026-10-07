@@ -31,8 +31,7 @@
     button { padding: 11px 16px; border: 0; border-radius: 8px; background: var(--primary); color: #fff; font-size: 1rem; cursor: pointer; }
     button:hover { background: var(--primary-d); }
     button:disabled { opacity: .6; cursor: not-allowed; }
-    .full { width: 100%; margin-top: 4px; }
-    .hint { color: var(--muted); font-size: .82rem; margin: 6px 0 0; }
+    .full { width: 100%; margin-top: 16px; }
 
     .resultado { margin-top: 16px; padding: 14px 16px; border-radius: 10px; border: 1px solid; }
     .resultado p { margin: 4px 0 0; }
@@ -107,7 +106,7 @@
             </select>
           </label>
         </div>
-        <button type="submit" id="btnAgendar" class="full" style="margin-top:16px">Agendar cita</button>
+        <button type="submit" id="btnAgendar" class="full">Agendar cita</button>
         <div id="resultado" hidden></div>
       </div>
     </form>
@@ -118,10 +117,8 @@
     <div class="card">
       <div class="row">
         <label>Fecha <input id="fechaAgenda" type="date"></label>
-        <label>Token de lectura de Airtable <input id="token" type="password" placeholder="pat…" autocomplete="off"></label>
         <button type="button" id="btnVerAgenda">Ver agenda</button>
       </div>
-      <p class="hint">Token con permiso solo de lectura (data.records:read) sobre esta base. Se guarda en este navegador, no en el código.</p>
       <p id="msgAgenda" class="msg"></p>
     </div>
 
@@ -151,9 +148,6 @@
   // ============ CONFIGURACIÓN ============
   const CONFIG = {
     WEBHOOK_URL: 'https://hook.eu1.make.com/wm4q9ihrrlgiy188u2nbyvvwy4scj9q7', // Escenario 1 · Custom webhook
-    AIRTABLE_BASE_ID: 'appZDHgDtRM7VrP0M',        // está en la URL de tu base (empieza por "app")
-    TABLA_AGENDA: 'Agenda',
-    TABLA_CITAS: 'Citas',
   };
 
   const $ = id => document.getElementById(id);
@@ -163,6 +157,15 @@
     const d = new Date();
     d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
     return d.toISOString().slice(0, 10);
+  }
+
+  // Envía datos al webhook como x-www-form-urlencoded (evita el preflight de CORS)
+  // y devuelve la respuesta parseada como JSON (o lanza error si no es JSON).
+  async function llamarWebhook(datos) {
+    const res = await fetch(CONFIG.WEBHOOK_URL, { method: 'POST', body: datos });
+    const texto = await res.text();
+    try { return JSON.parse(texto); }
+    catch { const e = new Error('Respuesta no válida'); e.sinRespuesta = true; e.detalle = texto || ('HTTP ' + res.status); throw e; }
   }
 
   // ---------- Pestañas ----------
@@ -180,20 +183,19 @@
     if (!formAgendar.reportValidity()) return;
 
     const btn = $('btnAgendar');
-    // Envía: propietario, correo, mascota, especie, servicio, fecha, hora
-    // como x-www-form-urlencoded (evita el preflight de CORS)
+    // Envía: accion=agendar, propietario, correo, mascota, especie, servicio, fecha, hora
     const datos = new URLSearchParams(new FormData(formAgendar));
+    datos.set('accion', 'agendar');
     btn.disabled = true;
     btn.textContent = 'Agendando…';
 
     let respuesta;
     try {
-      const res = await fetch(CONFIG.WEBHOOK_URL, { method: 'POST', body: datos });
-      const texto = await res.text();
-      try { respuesta = JSON.parse(texto); }
-      catch { respuesta = { estado: 'sin_respuesta', detalle: texto || ('HTTP ' + res.status) }; }
+      respuesta = await llamarWebhook(datos);
     } catch (err) {
-      respuesta = { estado: 'sin_conexion', detalle: err.message };
+      respuesta = err.sinRespuesta
+        ? { estado: 'sin_respuesta', detalle: err.detalle }
+        : { estado: 'sin_conexion', detalle: err.message };
     }
 
     mostrarResultado(respuesta, datos.get('fecha'), datos.get('hora'));
@@ -218,7 +220,8 @@
       sin_respuesta: ['⛔ El escenario no respondió', 'Make recibió la solicitud, pero ninguna ruta llegó a un Webhook response (escenario apagado, en modo escucha o con error). Revisa el History en Make.'],
       sin_conexion: ['⛔ Sin conexión con el escenario', 'No se pudo contactar el webhook. Revisa la URL en CONFIG y el header Access-Control-Allow-Origin en los Webhook response.'],
     };
-    const estado = textos[r.estado] ? r.estado : 'error';
+    const recibido = String(r.estado || '').toLowerCase(); // tolera "Alerta", "CONFIRMADA", etc.
+    const estado = textos[recibido] ? recibido : 'error';
     const [titulo, detalle] = textos[estado];
 
     const box = $('resultado');
@@ -235,11 +238,8 @@
   }
 
   // ============ VISTA 2: AGENDA DEL DÍA ============
-  const TOKEN_KEY = 'airtable_token_lectura';
-  function leerToken() { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch { return ''; } }
-  function guardarToken(t) { try { localStorage.setItem(TOKEN_KEY, t); } catch { /* sin almacenamiento */ } }
-
-  $('token').value = leerToken();
+  // Pide la agenda al mismo webhook con accion=agenda. Respuesta esperada:
+  // { "franjas": { "records": [...] }, "citas": { "records": [...] } }
   $('fechaAgenda').value = hoyTexto();
 
   function msgAgenda(texto, tipo = '') {
@@ -247,18 +247,12 @@
     $('msgAgenda').className = 'msg ' + tipo;
   }
 
-  // Lee registros de Airtable filtrando por fecha (texto). 100 por página: suficiente para 40 turnos/día.
-  async function listar(tabla, fecha, token) {
-    const p = new URLSearchParams({ filterByFormula: `{Fecha}='${fecha}'` });
-    p.set('sort[0][field]', 'Hora');
-    p.set('sort[0][direction]', 'asc');
-    const url = `https://api.airtable.com/v0/${CONFIG.AIRTABLE_BASE_ID}/${encodeURIComponent(tabla)}?${p}`;
-    const res = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
-    if (res.status === 401 || res.status === 403) throw new Error('Token inválido o sin permiso de lectura sobre la base.');
-    if (res.status === 404) throw new Error('No se encontró la base o la tabla "' + tabla + '". Revisa CONFIG.');
-    if (!res.ok) throw new Error('Airtable respondió HTTP ' + res.status);
-    const data = await res.json();
-    return (data.records || []).map(r => r.fields || {});
+  // Acepta tanto { records: [...] } como un arreglo directo; devuelve los "fields" ordenados por Hora
+  function registros(x) {
+    const lista = Array.isArray(x) ? x : (x && x.records) || [];
+    return lista
+      .map(r => r.fields || r)
+      .sort((a, b) => String(a.Hora || '').localeCompare(String(b.Hora || '')));
   }
 
   function fila(celdas) {
@@ -288,18 +282,14 @@
 
   async function verAgenda() {
     const fecha = $('fechaAgenda').value;
-    const token = $('token').value.trim();
     if (!fecha) { msgAgenda('Elige una fecha.', 'err'); return; }
-    if (!token) { msgAgenda('Ingresa el token de lectura de Airtable.', 'err'); return; }
-    guardarToken(token);
 
     $('btnVerAgenda').disabled = true;
     msgAgenda('Cargando…');
     try {
-      const [franjas, citas] = await Promise.all([
-        listar(CONFIG.TABLA_AGENDA, fecha, token),
-        listar(CONFIG.TABLA_CITAS, fecha, token),
-      ]);
+      const data = await llamarWebhook(new URLSearchParams({ accion: 'agenda', fecha }));
+      const franjas = registros(data.franjas);
+      const citas = registros(data.citas);
 
       const tbF = $('tbFranjas');
       if (!franjas.length) vacio(tbF, 4, 'No hay franjas para esta fecha.');
@@ -322,14 +312,16 @@
 
       msgAgenda(`${citas.length} ${citas.length === 1 ? 'solicitud' : 'solicitudes'} el ${fecha}.`);
     } catch (err) {
-      msgAgenda(err.message, 'err');
+      console.error(err);
+      msgAgenda(err.sinRespuesta
+        ? 'El escenario no devolvió la agenda. Revisa la ruta "agenda" en Make.'
+        : 'No se pudo conectar con el escenario.', 'err');
     } finally {
       $('btnVerAgenda').disabled = false;
     }
   }
 
   $('btnVerAgenda').addEventListener('click', verAgenda);
-  $('fechaAgenda').addEventListener('change', () => { if ($('token').value.trim()) verAgenda(); });
 </script>
 </body>
 </html>
